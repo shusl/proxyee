@@ -5,10 +5,12 @@ import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
 import org.bouncycastle.asn1.x500.style.BCStrictStyle;
 import org.bouncycastle.asn1.x500.style.BCStyle;
-import org.bouncycastle.asn1.x509.*;
+import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
@@ -30,7 +32,6 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -38,7 +39,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class CertUtil {
-
+	
 	private static KeyFactory keyFactory = null;
 
 	static {
@@ -121,6 +122,36 @@ public class CertUtil {
 		return getKeyFactory().generatePublic(publicKeySpec);
 	}
 
+	public static PrivateKey generatePrivateKey(String filename) throws InvalidKeySpecException, NoSuchAlgorithmException, IOException {
+		return generatePrivateKey(null, filename);
+	}
+
+	public static PrivateKey generatePrivateKey(KeyFactory factory, String filename)
+			throws InvalidKeySpecException, FileNotFoundException, IOException, NoSuchAlgorithmException {
+		if (factory == null) {
+			factory = getKeyFactory();
+		}
+		PemFile pemFile = new PemFile(filename);
+		byte[] content = pemFile.getPemObject().getContent();
+		PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(content);
+		return factory.generatePrivate(privKeySpec);
+	}
+
+	public static PublicKey generatePublicKey(String filename) throws NoSuchAlgorithmException, InvalidKeySpecException,  IOException {
+		return generatePublicKey(null, filename);
+	}
+	
+	public static PublicKey generatePublicKey(KeyFactory factory, String filename)
+			throws InvalidKeySpecException, FileNotFoundException, IOException, NoSuchAlgorithmException {
+		if (factory == null) {
+			factory = getKeyFactory();
+		}
+		PemFile pemFile = new PemFile(filename);
+		byte[] content = pemFile.getPemObject().getContent();
+		X509EncodedKeySpec pubKeySpec = new X509EncodedKeySpec(content);
+		return factory.generatePublic(pubKeySpec);
+	}
+
 	/**
 	 * 从文件加载RSA公钥 openssl rsa -in ca.key -pubout -outform DER -out ca_pub.der
 	 */
@@ -191,12 +222,21 @@ public class CertUtil {
 		return subject;
 	}
 
+	public static String publicKeyToPem(PublicKey key) throws IOException {
+		String type = "RSA PUBLIC KEY";
+		return encodeToPem(key, type);
+	}
+
 	public static String privateKeyToPem(PrivateKey privateKey) throws IOException{
+		String type = "RSA PRIVATE KEY";
+		return encodeToPem(privateKey, type);
+	}
+
+	private static String encodeToPem(Key privateKey, String type) throws IOException {
 		BASE64Encoder base64 = new BASE64Encoder();
 		ByteArrayOutputStream cerFormat = new ByteArrayOutputStream();
 		base64.encodeBuffer(privateKey.getEncoded(), cerFormat);
 		byte[] bytes = cerFormat.toByteArray();
-		String type = "RSA PRIVATE KEY";
 		return encodePem(type, bytes);
 	}
 
@@ -253,24 +293,71 @@ public class CertUtil {
 		//SHA256 用SHA1浏览器可能会提示证书不安全
 		ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSA").setProvider("BC").build(caPriKey);
 		X509Certificate certificate = new JcaX509CertificateConverter().setProvider("BC").getCertificate(jv3Builder.build(signer));
-		saveToFile(certificate, hosts[0]);
 		return certificate;
 	}
 
-	private static void saveToFile(X509Certificate certificate, String host) {
+	public static void savePublishToPemFile(PublicKey key, String host) {
+		File f = getCertSaveFile(host, "pub");
+		if (f.exists()) {
+			return;
+		}
 		try {
-			String pem = certToPem(certificate);
-			String file = String.format("certs/%s.crt", host);
-			File f = new File(file);
+			String pem = publicKeyToPem(key);
+			try (FileOutputStream os = new FileOutputStream(f)) {
+				os.write(pem.getBytes());
+			}
+		} catch (Exception ex) {
+			Log.error("write public key pem {} for host {} to fail", key, host);
+		}
+	}
+
+	public static void savePrivateToDerFile(PrivateKey key, String host) {
+		try {
+			File f = getCertSaveFile(host, "der");
 			if (f.exists()) {
 				return;
 			}
+			try (FileOutputStream os = new FileOutputStream(f)) {
+				os.write(key.getEncoded());
+			}
+		} catch (Exception ex) {
+			Log.error("write private key to der {} for host {} to fail", key, host);
+		}
+	}
+
+	public static void savePrivateToFile(PrivateKey key, String host) {
+		try {
+
+			File f = getCertSaveFile(host,"key");
+			if (f.exists()) {
+				return;
+			}
+			String pem = privateKeyToPem(key);
+			try (FileOutputStream os = new FileOutputStream(f)) {
+				os.write(pem.getBytes());
+			}
+		} catch (Exception ex) {
+			Log.error("write private key to pem {} for host {} to fail", key, host);
+		}
+	}
+
+	public static void saveToFile(X509Certificate certificate, String host) {
+		try {
+			File f = getCertSaveFile(host, "crt");
+			if (f.exists()) return;
+			String pem = certToPem(certificate);
 			try(FileOutputStream os = new FileOutputStream(f)) {
 				os.write(pem.getBytes());
 			}
 		} catch (Exception ex) {
-			 ex.printStackTrace();
+			Log.error("write cert to pem {} for host {} to fail", certificate, host);
 		}
+	}
+
+	public static File getCertSaveFile(String host, String ext) {
+		String file = String.format("certs/%s.%s", host, ext);
+		File f = new File(file);
+		return f;
 	}
 
 	public static X500Name getX500Name(String CN, String O, String L, String ST, String C, String OU) {

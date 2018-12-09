@@ -1,7 +1,9 @@
 package com.github.monkeywie.proxyee.crt;
 
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
+import com.github.monkeywie.proxyee.util.Log;
 
+import java.io.File;
 import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,9 +26,21 @@ public class CertPool {
 			if (portCertCache.containsKey(key)) {
 				return portCertCache.get(key);
 			} else {
-				HttpProxyServerConfig sc = serverConfig;
-				cert = CertUtil.genCert(sc.getCaSubject(), sc.getCaPriKey(), sc.getServerPubKey(),
-						sc.getCaNotBefore(), sc.getCaNotAfter(), key);
+				File certFile = CertUtil.getCertSaveFile(host, "crt");
+				if (certFile.exists()) {
+					Log.info("load cert from file {}", certFile.getName());
+					try {
+						cert = CertUtil.loadCert(certFile.getAbsolutePath());
+					} catch (Exception ex) {
+						Log.error("load cert from file {} fail", certFile.getName(), ex);
+					}
+				}
+				if (cert == null) {
+					HttpProxyServerConfig sc = serverConfig;
+					cert = CertUtil.genCert(sc.getCaSubject(), sc.getCaPriKey(), sc.getServerPubKey(),
+							sc.getCaNotBefore(), sc.getCaNotAfter(), key);
+					CertUtil.saveToFile(cert, host);
+				}
 				portCertCache.put(key, cert);
 			}
 		}

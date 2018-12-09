@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.security.KeyPair;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.util.Calendar;
 import java.util.Date;
@@ -32,6 +33,7 @@ public class HttpProxyServer {
 	//http代理隧道握手成功
 	public final static HttpResponseStatus SUCCESS = new HttpResponseStatus(200,
 			"Connection established");
+	public static final String INTERNAL_HTTPS_NAME = "internal-https";
 
 	private HttpProxyCACertFactory caCertFactory;
 	private HttpProxyServerConfig serverConfig;
@@ -60,10 +62,23 @@ public class HttpProxyServer {
 								.build());
 				ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 				initCARootKey(classLoader);
-				//生产一对随机公私钥用于网站SSL证书动态创建
-				KeyPair keyPair = CertUtil.genKeyPair();
-				serverConfig.setServerPriKey(keyPair.getPrivate());
-				serverConfig.setServerPubKey(keyPair.getPublic());
+				File pubFile = CertUtil.getCertSaveFile(INTERNAL_HTTPS_NAME, "pub");
+				File priFile = CertUtil.getCertSaveFile(INTERNAL_HTTPS_NAME, "key");
+				if (pubFile.exists() && priFile.exists()){
+					logger.info("load private and public key from file {}, {}", priFile.getName(), pubFile.getName());
+					PrivateKey priKey = CertUtil.generatePrivateKey(priFile.getAbsolutePath());
+					PublicKey publicKey = CertUtil.generatePublicKey(pubFile.getAbsolutePath());
+					serverConfig.setServerPubKey(publicKey);
+					serverConfig.setServerPriKey(priKey);
+				}else {
+					//生产一对随机公私钥用于网站SSL证书动态创建
+					KeyPair keyPair = CertUtil.genKeyPair();
+					serverConfig.setServerPriKey(keyPair.getPrivate());
+					serverConfig.setServerPubKey(keyPair.getPublic());
+					CertUtil.savePrivateToDerFile(serverConfig.getServerPriKey(), INTERNAL_HTTPS_NAME);
+					CertUtil.savePrivateToFile(serverConfig.getServerPriKey(), INTERNAL_HTTPS_NAME);
+					CertUtil.savePublishToPemFile(serverConfig.getServerPubKey(), INTERNAL_HTTPS_NAME);
+				}
 			} catch (Exception e) {
 				serverConfig.setHandleSsl(false);
 				logger.error("init ssl fail ", e);
