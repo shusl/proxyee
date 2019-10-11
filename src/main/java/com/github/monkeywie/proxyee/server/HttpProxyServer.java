@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -64,13 +65,13 @@ public class HttpProxyServer {
 				initCARootKey(classLoader);
 				File pubFile = CertUtil.getCertSaveFile(INTERNAL_HTTPS_NAME, "pub");
 				File priFile = CertUtil.getCertSaveFile(INTERNAL_HTTPS_NAME, "key");
-				if (pubFile.exists() && priFile.exists()){
+				if (pubFile.exists() && priFile.exists()) {
 					logger.info("load private and public key from file {}, {}", priFile.getName(), pubFile.getName());
 					PrivateKey priKey = CertUtil.generatePrivateKey(priFile.getAbsolutePath());
 					PublicKey publicKey = CertUtil.generatePublicKey(pubFile.getAbsolutePath());
 					serverConfig.setServerPubKey(publicKey);
 					serverConfig.setServerPriKey(priKey);
-				}else {
+				} else {
 					//生产一对随机公私钥用于网站SSL证书动态创建
 					KeyPair keyPair = CertUtil.genKeyPair();
 					serverConfig.setServerPriKey(keyPair.getPrivate());
@@ -173,7 +174,7 @@ public class HttpProxyServer {
 			ServerBootstrap b = new ServerBootstrap();
 			b.group(bossGroup, workerGroup)
 					.channel(NioServerSocketChannel.class)
-          .option(ChannelOption.SO_BACKLOG, 1024)
+					.option(ChannelOption.SO_BACKLOG, 1024)
 //					.handler(new LoggingHandler(LogLevel.DEBUG))
 					.childHandler(new ChannelInitializer<Channel>() {
 
