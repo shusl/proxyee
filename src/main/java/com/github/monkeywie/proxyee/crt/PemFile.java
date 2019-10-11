@@ -5,22 +5,17 @@ package com.github.monkeywie.proxyee.crt;
  * Date:   2018/12/9 16:59
  */
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.bouncycastle.util.io.pem.PemWriter;
+
+import java.io.*;
 
 public class PemFile {
 
 	private PemObject pemObject;
 
-	public PemFile(String filename) throws FileNotFoundException, IOException {
+	public PemFile(String filename) throws IOException {
 		PemReader pemReader = new PemReader(new InputStreamReader(
 				new FileInputStream(filename)));
 		try {
@@ -30,8 +25,7 @@ public class PemFile {
 		}
 	}
 
-	public void write(String filename) throws FileNotFoundException,
-			IOException {
+	public void write(String filename) throws IOException {
 		PemWriter pemWriter = new PemWriter(new OutputStreamWriter(
 				new FileOutputStream(filename)));
 		try {
